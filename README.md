@@ -1,9 +1,21 @@
-# lx
+# Lx
 
-Listing tools for spot checks of all sorts, written in Elixir.
+**TODO: Add description**
 
-----------  -------------------------------------------------
-lx.whois    List whois information, optionally dump to a dot file
-lx.spf      List or debug SPF info
-----------  -------------------------------------------------
+## Installation
+
+If [available in Hex](https://hex.pm/docs/publish), the package can be installed
+by adding `lx` to your list of dependencies in `mix.exs`:
+
+```elixir
+def deps do
+  [
+    {:lx, "~> 0.1.0"}
+  ]
+end
+```
+
+Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
+and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
+be found at [https://hexdocs.pm/lx](https://hexdocs.pm/lx).
 
