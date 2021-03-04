@@ -25,3 +25,6 @@ lx-*.tar
 
 # Temporary files for e.g. tests
 /tmp
+
+# donot put rfc's into github
+/rfc

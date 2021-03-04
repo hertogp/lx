@@ -7,7 +7,7 @@ defmodule Lx.MixProject do
       version: "0.1.0",
       elixir: "~> 1.11",
       start_permanent: Mix.env() == :prod,
-      escript: [main_module: Lx.CLI],
+      escript: [main_module: Lx.Cmd],
       deps: deps()
     ]
   end
