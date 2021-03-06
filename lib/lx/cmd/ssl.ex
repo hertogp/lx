@@ -1,5 +1,7 @@
 defmodule Lx.Cmd.Ssl do
+  require Logger
+
   def run(argv) do
-    IO.inspect(argv, label: "ssl")
+    Logger.info(argv)
   end
 end

@@ -1,12 +1,8 @@
 defmodule Lx.Cmd.Ping do
   require Logger
 
-  @cmd [cmd: "ping"]
-
-  Logger.metadata(@cmd)
-
   def run(argv) do
-    Logger.info("argv: #{inspect(argv)}", @cmd)
+    Logger.info("argv: #{inspect(argv)}")
     Logger.warn("argv: #{inspect(argv)}")
     Logger.error("argv: #{inspect(argv)}")
     Logger.debug("argv: #{inspect(argv)}")

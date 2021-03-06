@@ -3,17 +3,19 @@ defmodule Lx do
   Documentation for `Lx`.
   """
 
+  @cmd_width 6
+
   @doc """
   Custom log formatter for Logger
   """
   def format(level, msg, ts, meta) do
-    cmd = Keyword.get(meta, :cmd, "unknown")
+    cmd = format_cmd(meta) |> String.pad_trailing(@cmd_width)
     tstamp = format_ts(ts)
-    pad = if String.length("#{level}") == 5, do: "", else: " "
+    level = String.pad_leading("#{level}", 5)
 
-    "#{tstamp} #{cmd} [#{pad}#{level}] #{msg}\n"
+    "#{tstamp} #{cmd} [#{level}] #{msg} -- #{inspect(meta)}\n"
   rescue
-    _ -> "oops"
+    _ -> "*** error: Lx.format(#{inspect({level, msg, ts, meta})})"
   end
 
   def format_ts(ts) do
@@ -21,5 +23,15 @@ defmodule Lx do
     "#{year}#{month}#{day}T#{hour}:#{minute}:#{second}.#{ms}"
   rescue
     _ -> DateTime.utc_now() |> to_string() |> String.replace(["-", " "], "")
+  end
+
+  def format_cmd(meta) do
+    Keyword.get(meta, :module, "unknown")
+    |> to_string()
+    |> String.split(".")
+    |> List.last()
+    |> String.downcase()
+  rescue
+    _ -> to_string("ehm?")
   end
 end
