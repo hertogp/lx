@@ -13,14 +13,14 @@ defmodule Lx do
     tstamp = format_ts(ts)
     level = String.pad_leading("#{level}", 5)
 
-    "#{tstamp} #{cmd} [#{level}] #{msg} -- #{inspect(meta)}\n"
+    "#{tstamp} #{cmd} [#{level}] #{msg}\n"
   rescue
     _ -> "*** error: Lx.format(#{inspect({level, msg, ts, meta})})"
   end
 
   def format_ts(ts) do
-    {{year, month, day}, {hour, minute, second, ms}} = ts
-    "#{year}#{month}#{day}T#{hour}:#{minute}:#{second}.#{ms}"
+    {{year, month, day}, {hour, minute, second, _ms}} = ts
+    "#{year}#{month}#{day}T#{hour}:#{minute}:#{second}"
   rescue
     _ -> DateTime.utc_now() |> to_string() |> String.replace(["-", " "], "")
   end

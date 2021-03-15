@@ -5,17 +5,24 @@ defmodule Lx.Cmd do
     Logger.error("Need a command")
   end
 
-  def main(argv) do
-    cmd = hd(argv) |> String.capitalize()
-    mod = Module.concat(__MODULE__, cmd)
+  def main([cmd | argv]) do
+    Logger.info("main with #{cmd}, #{inspect(argv)}")
+    mod = Module.concat(__MODULE__, String.capitalize(cmd))
 
-    case Code.ensure_loaded(mod) do
-      {:module, module} -> dispatch(module, argv)
-      {:error, reason} -> Logger.error("Could not load app #{mod}: #{reason}")
+    result =
+      case Code.ensure_loaded(mod) do
+        {:module, module} -> dispatch(module, argv)
+        {:error, reason} -> Logger.error("Could not load app #{mod}: #{reason}")
+      end
+
+    case result do
+      :ok -> :ok
+      x when is_binary(x) -> IO.puts(x)
+      x -> IO.inspect(x)
     end
   end
 
-  defp dispatch(module, [_ | argv]) do
+  defp dispatch(module, argv) do
     case function_exported?(module, :run, 1) do
       true -> apply(module, :run, [argv])
       false -> Logger.error("module #{module} has no run/1 method?")
