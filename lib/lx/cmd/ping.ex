@@ -1,24 +1,23 @@
 defmodule Lx.Cmd.Ping do
-  require Logger
-
-  def run(argv) do
-    Logger.info("argv: #{inspect(argv)}")
-    Logger.warn("argv: #{inspect(argv)}")
-    Logger.error("argv: #{inspect(argv)}")
-    Logger.debug("argv: #{inspect(argv)}")
-    IO.inspect(Logger.metadata())
-    log(:info, "argv: #{inspect(argv)}")
-    log(:warn, "argv: #{inspect(argv)}")
-    log(:error, "argv: #{inspect(argv)}")
-    log(:debug, "argv: #{inspect(argv)}")
-  end
-
-  def log(level, msg) do
-    case level do
-      :info -> Logger.info("[ping] " <> msg)
-      :warn -> Logger.warn("[ping] " <> msg)
-      :error -> Logger.error("[ping] " <> msg)
-      :debug -> Logger.debug("[ping] " <> msg)
-    end
+  alias Lx.Msg
+  @t0 500
+  @t1 2000
+  def run(arg) do
+    Msg.level(:debug)
+    Process.sleep(:random.uniform(@t0) * 1)
+    Msg.error("arg: #{arg}")
+    Process.sleep(:random.uniform(@t0) * 1)
+    Msg.warn("arg: #{arg}")
+    Process.sleep(:random.uniform(@t0) * 1)
+    Msg.note("arg: #{arg}")
+    Process.sleep(:random.uniform(@t0) * 1)
+    Msg.info("arg: #{arg}")
+    Process.sleep(:random.uniform(@t0) * 1)
+    Msg.verbose("arg: #{arg}")
+    Process.sleep(:random.uniform(@t0) * 1)
+    Msg.debug("arg: #{arg}")
+    Process.sleep(@t1)
+    Msg.done()
+    Process.sleep(@t1)
   end
 end

@@ -1,55 +1,55 @@
 defmodule Lx.Cmd.Ssl do
   @moduledoc """
-  Simple ssl certificate chain checker
+  Worker that gathers and reports on a host's certificate chain (if any).
   """
 
   require Logger
+  alias OptionParser
 
   @oids Lx.Utils.load_oids()
   @name __MODULE__
   @ssl_opts [
     versions: [:"tlsv1.1", :"tlsv1.2"],
     ciphers: :ssl.cipher_suites(:default, :"tlsv1.2"),
-    # server_name_indication: host,
-    # partial_chain: &partial_chain/1,
     depth: 99
   ]
-
-  # Unused ssl options:
-  # verify: :verify_peer,
-  # cacertfile: "/etc/ssl/certs/Staat_der_Nederlanden_EV_Root_CA.pem",
-  # customize_hostname_check: [
-  #   match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
-  # ]
+  @cmd_opts [
+    debug: :boolean,
+    note: :boolean
+  ]
+  @cmd_aliases [
+    d: :debug,
+    n: :note
+  ]
 
   @doc """
   Initialize module, parse arguments and prune argv to list of hosts
   """
-  def init(argv) do
+  def setup(argv) do
+    {parsed, args, invalid} = OptionParser.parse(argv, strict: @cmd_opts, aliases: @cmd_aliases)
+
+    if Keyword.get(parsed, :debug, false),
+      do: Logger.configure_backend(:console, level: :debug),
+      else: Logger.configure_backend(:console, level: :info)
+
+    invalid
+    |> Enum.map(fn x -> Logger.debug("unknown option #{inspect(x)}") end)
+
+    # partial_chain stores the certificate chain in this registry (key = hash of end cert)
     Lx.Register.start_link(@name)
 
-    argv
+    args
     |> Enum.uniq()
   end
 
-  def teardown(result) do
-    Lx.Register.stop(@name)
-    result
-  end
-
-  defp partial_chain(certs) do
-    # certs [Root CA, Intermediates (if any)..., End Certificate]
-    # - register chain under fingerprint(End Certificate) & trust the Root CA
-    id = :crypto.hash(:sha256, List.last(certs))
-    Lx.Register.put(@name, id, certs)
-    {:trusted_ca, List.first(certs)}
-  end
+  def teardown(_result),
+    do: Lx.Register.stop(@name)
 
   @doc """
   Run a worker for a single argument
   """
   def run(hostname) do
-    Logger.info("running with #{inspect(hostname)}")
+    Logger.notice("running with #{inspect(hostname)}")
 
     host = to_charlist(hostname)
 
@@ -58,54 +58,80 @@ defmodule Lx.Cmd.Ssl do
       |> Keyword.put(:partial_chain, &partial_chain/1)
       |> Keyword.put(:server_name_indication, host)
 
-    certs =
-      case :ssl.connect(host, 443, ssl_opts) do
-        {:error, reason} ->
-          {:error, reason}
+    result =
+      with(
+        {:connect, {:ok, sock}} <- {:connect, :ssl.connect(host, 443, ssl_opts)},
+        {:cert, {:ok, der}} <- {:cert, :ssl.peercert(sock)},
+        {:name, {:ok, {ip, port}}} <- {:name, :ssl.peername(sock)}
+      ) do
+        :ssl.close(sock)
+        id = :crypto.hash(:sha256, der)
 
-        {:ok, sock} ->
-          {:ok, {ip, port}} = :ssl.peername(sock)
-          ip = Tuple.to_list(ip) |> Enum.join(".")
-          Logger.info("connect to #{hostname} (#{ip}:#{port})")
+        chain =
+          Lx.Register.get(@name, id)
+          |> Enum.reverse()
+          |> Enum.map(fn cert -> der_decode(cert) end)
 
-          case :ssl.peercert(sock) do
-            {:ok, der} ->
-              :ssl.close(sock)
-              id = :crypto.hash(:sha256, der)
-              Lx.Register.get(@name, id)
+        {:ok, {ip, port}, chain}
+      else
+        {:connect, {:error, reason}} ->
+          {:error, "Could not connect to #{hostname} (#{inspect(reason)}})"}
 
-            error ->
-              {:error, to_string(error)}
-          end
+        {:cert, error} ->
+          {:error, "Could not get peercert for #{hostname} (#{inspect(error)}"}
+
+        {:name, error} ->
+          {:error, "Could not get peer name for #{hostname} (#{inspect(error)})"}
+
+        error ->
+          {:error, "** unknown error: #{inspect(error)}"}
       end
 
-    report_chain(hostname, certs)
+    {@name, hostname, result}
   end
 
-  def report_chain(hostname, nil),
-    do: Logger.error("[#{hostname}] No certificate chain found")
+  def report({:ok, result}),
+    do: report(result)
 
-  def report_chain(hostname, []),
-    do: Logger.error("[#{hostname}] No certificate chain found")
+  def report({:exit, reason}),
+    do: Logger.error("exited: #{inspect(reason)}")
 
-  def report_chain(hostname, {:error, error}),
-    do: Logger.error("[#{hostname}] error: #{error}")
+  def report({@name, hostname, {:error, reason}}),
+    do: Logger.error("#{hostname} ** #{reason}")
 
-  def report_chain(hostname, certs) do
-    Logger.info("[#{hostname}] certificate chain length #{Enum.count(certs)}")
+  def report({@name, hostname, {:ok, {ip, port}, certs}}) do
+    addr = Tuple.to_list(ip) |> Enum.join(".")
+    Logger.info("[#{hostname}]  #{Enum.count(certs)}  certs @ #{addr}:#{port}")
 
     certs
-    |> Enum.reverse()
-    |> Enum.map(fn cert -> der_decode(cert) end)
-    # |> Enum.map(fn x -> IO.inspect(x, label: :der_decoded) end)
     |> Enum.with_index()
-    |> Enum.map(fn {x, idx} ->
-      msg =
-        "subject=#{x.subjectCommonname}, issuer=#{x.issuerCommonname}" <>
-          ", not_before=#{x.not_before}, not_after=#{x.not_after}"
+    |> Enum.map(fn x -> report_cert(hostname, x) end)
+  end
 
-      Logger.info("[#{hostname}] depth=#{idx}, #{msg}")
-    end)
+  defp report_cert(hostname, {cert, idx}) do
+    msg =
+      "subject=#{cert.subjectCommonname}" <>
+        ", issuer=#{cert.issuerCommonname}" <>
+        ", not_before=#{cert.not_before}" <>
+        ", not_after=#{cert.not_after}"
+
+    msg =
+      case Map.get(cert, :_subjectAltName, []) do
+        [] -> msg
+        list -> msg <> ", altnames=#{Enum.join(list, ", ")}"
+      end
+
+    Logger.info("[#{hostname}] [#{idx}] #{msg}")
+  end
+
+  # Implementation
+
+  defp partial_chain(certs) do
+    # certs [Root CA, Intermediates (if any)..., End Certificate]
+    # - register chain under fingerprint(End Certificate) & trust the Root CA
+    id = :crypto.hash(:sha256, List.last(certs))
+    Lx.Register.put(@name, id, certs)
+    {:trusted_ca, List.first(certs)}
   end
 
   def der_decode(der) do
