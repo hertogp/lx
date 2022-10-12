@@ -25,7 +25,10 @@ defmodule Lx.MixProject do
     [
       {:ex_doc, "~> 0.18", only: :dev, runtime: false},
       {:credo, "~> 1.5", only: [:dev, :test]},
-      {:easy_ssl, "~> 1.3.0"}
+      {:easy_ssl, "~> 1.3.0"},
+      {:castore, "~> 0.1.0"},
+      {:iptrie, "~> 0.8.0"},
+      {:nimble_csv, "~> 1.1"}
     ]
   end
 end

@@ -1,0 +1,28 @@
+results: [
+  {"slotplan.nl",
+   {:ok,
+    {{131, 237, 78, 195}, 443, :"tlsv1.2",
+     [
+       %{
+         alt_names: "slotplan.nl, www.slotplan.nl",
+         issuer: "QuoVadis Global SSL ICA G2",
+         not_after: "2023-09-02T11:31:00Z",
+         not_before: "2022-09-02T11:36:25Z",
+         subject: "slotplan.nl"
+       },
+       %{
+         alt_names: "",
+         issuer: "QuoVadis Root CA 2",
+         not_after: "2027-05-24T19:47:38Z",
+         not_before: "2022-05-25T19:47:39Z",
+         subject: "QuoVadis Global SSL ICA G2"
+       },
+       %{
+         alt_names: "",
+         issuer: "QuoVadis Root CA 2",
+         not_after: "2031-11-24T18:23:33Z",
+         not_before: "2006-11-24T18:27:00Z",
+         subject: "QuoVadis Root CA 2"
+       }
+     ]}}}
+]

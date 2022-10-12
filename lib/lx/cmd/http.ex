@@ -8,8 +8,8 @@ defmodule Lx.Cmd.Http do
   require Logger
 
   def run(argv) do
-    Logger.info(argv)
-    IO.inspect(get(hd(argv)))
+    Logger.info(argv, label: "argv")
+    IO.inspect(get(argv))
   end
 
   def get(hostname) do

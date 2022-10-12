@@ -39,13 +39,13 @@ defmodule Lx.Register do
     do: Agent.get_and_update(name, fn x -> {Map.get(x, key), Map.put(x, key, value)} end)
 
   @doc """
-  Retrieve a value for given key from an Lx.Register
+  Retrieve a value for given `key` from an Lx.Register, returns `default` if `key` not found.
   """
-  def get(name, key) when is_atom(name),
-    do: Agent.get(name, fn x -> Map.get(x, key, nil) end)
+  def get(name, key, default \\ nil) when is_atom(name),
+    do: Agent.get(name, fn x -> Map.get(x, key, default) end)
 
   @doc """
-  Delete a key,value pair in an Lx.Register; returns the value
+  Delete a `key`,`value` pair in an Lx.Register; returns the `value`
   """
   def del(name, key) when is_atom(name),
     do: Agent.get_and_update(name, fn x -> {Map.get(x, key), Map.delete(x, key)} end)
