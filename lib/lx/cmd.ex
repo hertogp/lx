@@ -24,6 +24,18 @@ defmodule Lx.Cmd do
   @task_timeout 5_500
   @pbar_length 50
 
+  @cmd_opts [
+    debug: :boolean,
+    quiet: :boolean,
+    csv: :boolean
+  ]
+
+  @cmd_aliases [
+    d: :debug,
+    q: :quiet,
+    c: :csv
+  ]
+
   def main([]) do
     Logger.error("Need a command")
   end
@@ -31,29 +43,45 @@ defmodule Lx.Cmd do
   def main([cmd | argv]) do
     # TODO: level should be set via cli option lx wide...
     Lx.Msg.start(level: :debug, pbar: true)
+
+    {opts, targets, invalid} = OptionParser.parse(argv, strict: @cmd_opts, aliases: @cmd_aliases)
+
+    {dbg, opts} = Keyword.pop(opts, :debug, false)
+
+    if dbg,
+      do: Logger.configure_backend(:console, level: :debug),
+      else: Logger.configure_backend(:console, level: :info)
+
+    invalid
+    |> Enum.map(fn x -> Logger.notice("ignoring unknown option #{inspect(x)}") end)
+
     Process.flag(:trap_exit, true)
 
-    case dispatch(cmd, argv) do
+    case dispatch(cmd, targets, opts) do
       {:error, reason} ->
-        Lx.Msg.error("command #{cmd} failed: #{reason}")
+        # Lx.Msg.error("command #{cmd} failed: #{reason}")
+        Logger.error("command #{cmd} failed: #{reason}")
 
       x ->
         x
     end
   end
 
-  defp dispatch(cmd, []),
-    do: {:error, "missing arguments for #{cmd}"}
+  defp dispatch(cmd, [], _opts),
+    do: {:error, "missing targets for #{cmd}"}
 
-  defp dispatch(cmd, argv) do
+  defp dispatch(cmd, targets, opts) do
     module = Module.concat(__MODULE__, String.capitalize(cmd))
 
     case Code.ensure_loaded(module) do
+      {:error, :nofile} ->
+        {:error, "command not supported"}
+
       {:error, reason} ->
         {:error, reason}
 
       {:module, module} ->
-        {args, opts} = execp(argv, module, :setup)
+        {args, opts} = execp(targets, module, :setup, opts)
 
         args
         |> run_async(module, :run, opts)
@@ -61,10 +89,10 @@ defmodule Lx.Cmd do
     end
   end
 
-  defp execp(args, module, fun, opts \\ []) do
-    case function_exported?(module, fun, 1) do
-      true -> apply(module, fun, [args | opts])
-      false -> args
+  defp execp(args, module, fun, opts) do
+    case function_exported?(module, fun, 2) do
+      true -> apply(module, fun, [args, opts])
+      false -> {args, opts}
     end
   end
 
@@ -147,5 +175,30 @@ defmodule Lx.Cmd do
       )
 
     IO.write(:standard_error, pbar)
+  end
+
+  @doc """
+  Turn the argument list into a Stream of arguments, expanding prefixes to IP's
+
+  Caller can consume the stream by calling (e.g.) Stream.chunk_every/2 followed
+  by a Enum call.
+
+  """
+  def batches(args, acc)
+
+  def batches([], acc) do
+    acc
+    |> Stream.map(fn x -> "#{x}" end)
+  end
+
+  def batches([head | rest], acc) do
+    acc =
+      case Pfx.parse(head) do
+        {:ok, pfx} -> pfx
+        _ -> [head]
+      end
+      |> Stream.concat(acc)
+
+    batches(rest, acc)
   end
 end

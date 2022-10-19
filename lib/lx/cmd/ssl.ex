@@ -39,40 +39,13 @@ defmodule Lx.Cmd.Ssl do
     log_level: :none
   ]
 
-  @cmd_opts [
-    debug: :boolean,
-    quiet: :boolean,
-    csv: :boolean
-  ]
-
-  @cmd_aliases [
-    d: :debug,
-    q: :quiet,
-    c: :csv
-  ]
-
   @doc """
   Initialize module and parse arguments.
   """
-  @spec setup([binary]) :: {[binary], Keyword.t()}
-  def setup(argv) do
-    {opts, args, invalid} = OptionParser.parse(argv, strict: @cmd_opts, aliases: @cmd_aliases)
-
-    if Keyword.get(opts, :debug, false),
-      do: Logger.configure_backend(:console, level: :debug),
-      else: Logger.configure_backend(:console, level: :info)
-
-    invalid
-    |> Enum.map(fn x -> Logger.notice("ignoring unknown option #{inspect(x)}") end)
-
+  @spec setup([binary], Keyword.t()) :: {[binary], Keyword.t()}
+  def setup(args, opts) do
     # partial_chain stores the certificate chain in this registry (key = hash of end cert)
-    Lx.Register.start_link(@name)
-
-    args =
-      args
-      |> Enum.map(fn arg -> expand(arg) end)
-      |> List.flatten()
-      |> Enum.uniq()
+    IO.inspect(Lx.Register.start_link(@name), label: :Lx_Register)
 
     {args, opts}
   end
