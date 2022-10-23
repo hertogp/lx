@@ -56,14 +56,64 @@ defmodule Lx.Cmd do
     |> Enum.map(fn x -> Logger.notice("ignoring unknown option #{inspect(x)}") end)
 
     Process.flag(:trap_exit, true)
+    Lx.Cmd.Control.start_link(50)
 
+    # Original
+    # --------
     case dispatch(cmd, targets, opts) do
       {:error, reason} ->
         # Lx.Msg.error("command #{cmd} failed: #{reason}")
         Logger.error("command #{cmd} failed: #{reason}")
 
       x ->
-        x
+        IO.inspect(x, label: :original)
+        Logger.info("all done")
+    end
+
+    ## TODO:
+    # - handle cmd setup/teardown, maybe here or in Lx.Cmd.Control?
+    # - a worker may:
+    #   1. timeout -> not freed up, howto correlate with its target
+    #   2. die -> not freed up, howto correlate with its target
+    #   3. complete -> returns result as ok/error tuple
+    mod = module(cmd)
+
+    targets
+    |> stream_targets()
+    |> Stream.map(fn target -> test(mod, cmd, target, opts) end)
+    |> Enum.to_list()
+    |> yield_until(500)
+    |> Enum.map(fn {task, res} -> res || Task.shutdown(task, :brutal_kill) end)
+    |> IO.inspect(label: :result)
+  end
+
+  defp module(cmd) do
+    module = Module.concat(__MODULE__, String.capitalize(cmd))
+
+    case Code.ensure_loaded(module) do
+      {:error, :nofile} ->
+        {:error, "command not supported"}
+
+      {:error, reason} ->
+        {:error, reason}
+
+      {:module, module} ->
+        module
+    end
+  end
+
+  # module for cmd was nog found
+  def test({:error, reason}, cmd, target, _opts) do
+    Task.completed({:error, {cmd, target, reason}})
+  end
+
+  def test(mod, cmd, target, opts) do
+    if Lx.Cmd.Control.permit() do
+      Task.async(fn -> apply(mod, :run, [target | opts]) end)
+      |> Lx.Cmd.Control.start()
+    else
+      Process.sleep(500)
+      test(mod, cmd, target, opts)
     end
   end
 
@@ -98,6 +148,7 @@ defmodule Lx.Cmd do
 
   defp run_async(args, module, fun, opts) do
     args
+    |> stream_targets
     |> Enum.map(fn arg -> Task.async(fn -> apply(module, fun, [arg | opts]) end) end)
     |> yield_until(@task_timeout)
     |> Enum.map(fn {task, res} ->
@@ -118,22 +169,21 @@ defmodule Lx.Cmd do
   end
 
   defp loop_until(state, _running, time) when time <= 0 do
-    # we're out of time
-    progress_bar(0, 0)
+    progress_bar(0)
     IO.write(:standard_error, " - stopping, out of time\n")
     state
   end
 
   defp loop_until(state, [], time) do
-    # all workers are done
-    progress_bar(0, time)
+    progress_bar(time)
     IO.write(:standard_error, " - all workers are done\n")
     state
   end
 
   defp loop_until(state, running, time) do
     # still have time and some workers running
-    progress_bar(Enum.count(running), time)
+    # progress_bar(Enum.count(running), time)
+    progress_bar(time)
     millisec = 100
 
     {running, results} =
@@ -148,7 +198,7 @@ defmodule Lx.Cmd do
     |> loop_until(running, time - millisec)
   end
 
-  defp progress_bar(running, time) do
+  defp progress_bar(time) do
     done = @task_timeout - time
     divisor = 100 / @pbar_length
     percent = round(100 * done / @task_timeout)
@@ -169,7 +219,7 @@ defmodule Lx.Cmd do
           :reset,
           " #{percent}%",
           ", #{time} ms remaining",
-          ", #{running} workers active"
+          ", #{Lx.Cmd.Control.active()} workers active"
         ],
         true
       )
@@ -184,14 +234,15 @@ defmodule Lx.Cmd do
   by a Enum call.
 
   """
-  def batches(args, acc)
+  def stream_targets(args),
+    do: stream_targets(args, [])
 
-  def batches([], acc) do
+  def stream_targets([], acc) do
     acc
     |> Stream.map(fn x -> "#{x}" end)
   end
 
-  def batches([head | rest], acc) do
+  def stream_targets([head | rest], acc) do
     acc =
       case Pfx.parse(head) do
         {:ok, pfx} -> pfx
@@ -199,6 +250,6 @@ defmodule Lx.Cmd do
       end
       |> Stream.concat(acc)
 
-    batches(rest, acc)
+    stream_targets(rest, acc)
   end
 end

@@ -1,24 +1,23 @@
 defmodule Lx.Cmd.Ping do
-  alias Lx.Msg
-  require Logger
-  @t0 500
-  @t1 300
-  def run(arg) do
-    Msg.level(:debug)
-    Process.sleep(:rand.uniform(@t0) * 1)
-    Msg.error(%{arg: "#{arg}"})
-    Process.sleep(:rand.uniform(@t0) * 1)
-    Msg.warn("arg: #{arg}")
-    Process.sleep(:rand.uniform(@t0) * 1)
-    Msg.note("arg: #{arg}")
-    Process.sleep(:rand.uniform(@t0) * 1)
-    Msg.info("arg: #{arg}")
-    Process.sleep(:rand.uniform(@t0) * 1)
-    Msg.verbose("arg: #{arg}")
-    Process.sleep(:rand.uniform(@t0) * 1)
-    Msg.debug("arg: #{arg}")
-    Process.sleep(@t1)
-    Msg.done()
-    :ok
+  def run(arg, _opts \\ []) do
+    t =
+      if "127.0.0.1" == arg,
+        do: 10000,
+        else: :rand.uniform(4000)
+
+    Process.sleep(t)
+
+    case arg do
+      "127.0.0.2" ->
+        raise ArgumentError, arg
+
+      "127.0.0.3" ->
+        exit({:kaboom, arg})
+
+      _ ->
+        # IO.puts("#{Lx.Cmd.Control.active()} - ping #{arg} done")
+        Lx.Cmd.Control.done(self())
+        {:ok, {arg, t}}
+    end
   end
 end
