@@ -84,7 +84,8 @@ defmodule Lx.Cmd do
     |> Enum.to_list()
     |> yield_until(500)
     |> Enum.map(fn {task, res} -> res || Task.shutdown(task, :brutal_kill) end)
-    |> IO.inspect(label: :result)
+
+    # |> IO.inspect(label: :result)
   end
 
   defp module(cmd) do

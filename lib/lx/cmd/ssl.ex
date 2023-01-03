@@ -93,7 +93,7 @@ defmodule Lx.Cmd.Ssl do
         |> Enum.reverse()
         |> Enum.map(fn cert -> der_decode(cert) end)
 
-      {ip, port, tlsv, chain}
+      IO.inspect({ip, port, tlsv, chain}, label: :ssl)
     else
       {:connect, {:error, reason}} ->
         {:error, "could not connect to #{hostname}: #{inspect(reason)}"}
